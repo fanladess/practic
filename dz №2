@@ -1,0 +1,83 @@
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+def get_git_commits(repo_path):
+    """
+    Получает список коммитов из git-репозитория.
+    Возвращает список словарей с ключами: hash, author, date. # хэш дата и автор
+    """
+    try:
+        os.chdir(repo_path)  # Переходим в указанный путь репозитория
+        result = subprocess.run(
+            ["git", "log", "--pretty=format:%H|%an|%ad", "--date=iso"],  # Получаем информацию о коммитах
+            stdout=subprocess.PIPE,  # Комбинируем команды с помощью пайпа
+            text=True,
+            check=True
+        )
+        commits = []  # Список для хранения коммитов
+        for line in result.stdout.splitlines():  # Проходим по каждой строке вывода
+            commit_hash, author, date = line.split("|")  # Разделяем строку на хэш, автора и дату
+            commits.append({"hash": commit_hash, "author": author, "date": date})  # Добавляем коммит в список
+        return commits
+    except subprocess.CalledProcessError as e:
+        print(f"Ошибка при выполнении git log: {e}")
+        sys.exit(1)
+
+def generate_mermaid_graph(commits):
+    """
+    Генерирует Mermaid-описание графа зависимостей коммитов.
+    """
+    graph = ["graph TD"]  # Инициализируем граф в формате Mermaid
+    for i, commit in enumerate(commits):  # Проходим по всем коммитам
+        node = f'{commit["hash"][:7]}["{commit["hash"][:7]}\\n{commit["author"]}\\n{commit["date"]}"]'  # Создаем узел графа
+        graph.append(node)
+        if i > 0:
+            # Добавляем зависимость между коммитами
+            graph.append(f'{commits[i-1]["hash"][:7]} --> {commit["hash"][:7]}')
+    return "\n".join(graph)
+
+def visualize_mermaid_graph(mermaid_text, output_path, visualizer_path):
+    """
+    Визуализирует Mermaid-граф с помощью указанного инструмента.
+    """
+    try:
+        # Создаем временный файл для Mermaid-описания
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mmd") as temp_file:
+            temp_file.write(mermaid_text.encode())  # Записываем текст графа в файл
+            temp_file_path = temp_file.name  # Сохраняем путь к временному файлу
+
+        # Вызываем инструмент визуализации
+        subprocess.run(
+            [visualizer_path, "-i", temp_file_path, "-o", output_path],  # Запускаем визуализатор с указанием входного и выходного файлов
+            check=True
+        )
+        print(f"Граф успешно сохранен в {output_path}")
+    except subprocess.CalledProcessError as e:
+        print(f"Ошибка при визуализации графа: {e}")
+    finally:
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Визуализация графа зависимостей коммитов.")
+    parser.add_argument("--repo", required=True, help="Путь к анализируемому git-репозиторию.")
+    parser.add_argument("--visualizer", required=True, help="Путь к программе для визуализации графов (например, mmdc).")
+    parser.add_argument("--output", required=True, help="Путь для сохранения графического изображения графа.")
+    args = parser.parse_args()
+
+    # Получаем коммиты
+    commits = get_git_commits(args.repo)
+
+    # Генерируем Mermaid-граф
+    mermaid_graph = generate_mermaid_graph(commits)
+
+    # Визуализируем граф
+    visualize_mermaid_graph(mermaid_graph, args.output, args.visualizer)
+
+if __name__ == "__main__":
+    main()
