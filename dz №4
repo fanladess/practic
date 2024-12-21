@@ -1,0 +1,141 @@
+#Ассемблер
+import argparse
+import struct
+import yaml
+
+class Assembler:
+    def __init__(self, input_file, output_file, log_file):
+        self.input_file = input_file
+        self.output_file = output_file
+        self.log_file = log_file
+        self.instructions = []
+
+    def assemble(self):
+        with open(self.input_file, 'r') as file:
+            for line in file:
+                self._process_line(line.strip())
+        self._write_binary()
+        self._write_log()
+
+    def _process_line(self, line):
+        parts = line.split()
+        command = parts[0]
+        if command == "LOAD_CONST":
+            self._load_const(parts[1:])
+        elif command == "READ":
+            self._read(parts[1:])
+        elif command == "WRITE":
+            self._write(parts[1:])
+        elif command == "EQUAL":
+            self._equal(parts[1:])
+        else:
+            raise ValueError(f"Неизвестная команда: {command}")
+
+    def _load_const(self, args):
+        A = 3
+        B = int(args[0])
+        C = int(args[1])
+        instruction = struct.pack('>BHHH', A, B, C)
+        self.instructions.append(instruction)
+
+    def _read(self, args):
+        A = 2
+        B = int(args[0])
+        C = int(args[1])
+        instruction = struct.pack('>BHH', A, B, C)
+        self.instructions.append(instruction)
+
+    def _write(self, args):
+        A = 7
+        B = int(args[0])
+        C = int(args[1])
+        instruction = struct.pack('>BHH', A, B, C)
+        self.instructions.append(instruction)
+
+    def _equal(self, args):
+        A = 6
+        B = int(args[0])
+        C = int(args[1])
+        D = int(args[2])
+        instruction = struct.pack('>BHHH', A, B, C, D)
+        self.instructions.append(instruction)
+
+    def _write_binary(self):
+        with open(self.output_file, 'wb') as file:
+            for instruction in self.instructions:
+                file.write(instruction)
+
+    def _write_log(self):
+        log_data = {f"Instruction {i}": instruction.hex() for i, instruction in enumerate(self.instructions)}
+        with open(self.log_file, 'w') as file:
+            yaml.dump(log_data, file)
+
+def main():
+    parser = argparse.ArgumentParser(description="Ассемблер для учебной виртуальной машины.")
+    parser.add_argument("--input", required=True, help="Путь к файлу с исходным кодом.")
+    parser.add_argument("--output", required=True, help="Путь к выходному бинарному файлу.")
+    parser.add_argument("--log", required=True, help="Путь к файлу лога.")
+    args = parser.parse_args()
+
+    assembler = Assembler(args.input, args.output, args.log)
+    assembler.assemble()
+
+if __name__ == "__main__":
+    main()
+
+
+
+#Интерпретатор
+import argparse
+import struct
+import yaml
+
+class Interpreter:
+    def __init__(self, binary_file, output_file, memory_range):
+        self.binary_file = binary_file
+        self.output_file = output_file
+        self.memory = [0] * 1024  # Пример размера памяти
+        self.memory_range = memory_range
+
+    def execute(self):
+        with open(self.binary_file, 'rb') as file:
+            while True:
+                instruction = file.read(6)  # Читаем 6 байт
+                if not instruction:
+                    break
+                self._execute_instruction(instruction)
+
+        self._write_output()
+
+    def _execute_instruction(self, instruction):
+        A, = struct.unpack('>B', instruction[0:1])
+        if A == 3:  # LOAD_CONST
+            B, C = struct.unpack('>HH', instruction[1:5])
+            self.memory[C] = B
+        elif A == 2:  # READ
+            B, C = struct.unpack('>HH', instruction[1:5])
+            self.memory[B] = self.memory[C]
+        elif A == 7:  # WRITE
+            B, C = struct.unpack('>HH', instruction[1:5])
+            self.memory[C] = self.memory[B]
+        elif A == 6:  # EQUAL
+            B, C, D = struct.unpack('>HHH', instruction[1:6])
+            self.memory[B] = 1 if self.memory[C] == self.memory[D] else 0
+
+    def _write_output(self):
+        output_data = {f"Memory[{i}]": self.memory[i] for i in range(self.memory_range)}
+        with open(self.output_file, 'w') as file:
+            yaml.dump(output_data, file)
+
+def main():
+    parser = argparse.ArgumentParser(description="Интерпретатор для учебной виртуальной машины.")
+    parser.add_argument("--binary", required=True, help="Путь к бинарному файлу.")
+    parser.add_argument("--output", required=True, help="Путь к выходному YAML файлу.")
+    parser.add_argument("--range", type=int, required=True, help="Диапазон памяти для сохранения.")
+    args = parser.parse_args()
+
+    interpreter = Interpreter(args.binary, args.output, args.range)
+    interpreter.execute()
+
+if __name__ == "__main__":
+    main()
