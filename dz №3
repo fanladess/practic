@@ -1,0 +1,73 @@
+import json
+import re
+import sys
+import argparse
+
+class ConfigParser:
+    def __init__(self, input_text):
+        self.input_text = input_text
+        self.constants = {}
+        self.output = {}
+
+    def parse(self):
+        lines = self.input_text.strip().splitlines()
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if '<-' in line:
+                self._parse_constant_declaration(line)
+            elif line.startswith('#{'):
+                self._parse_constant_evaluation(line)
+            else:
+                raise SyntaxError(f"Неверный синтаксис: {line}")
+
+    def _parse_constant_declaration(self, line):
+        match = re.match(r'([a-z]+)\s*<-?\s*(.+);', line)
+        if not match:
+            raise SyntaxError(f"Неверное объявление константы: {line}")
+        name, value = match.groups()
+        self.constants[name] = self._parse_value(value)
+
+    def _parse_constant_evaluation(self, line):
+        match = re.match(r'#\{([a-z]+)\}', line)
+        if not match:
+            raise SyntaxError(f"Неверное выражение: {line}")
+        name = match.group(1)
+        if name not in self.constants:
+            raise NameError(f"Константа не найдена: {name}")
+        self.output[name] = self.constants[name]
+
+    def _parse_value(self, value):
+        value = value.strip()
+        if value.startswith('[') and value.endswith(']'):
+            return self._parse_array(value)
+        elif re.match(r'^\d+$', value):
+            return int(value)
+        else:
+            raise ValueError(f"Неверное значение: {value}")
+
+    def _parse_array(self, value):
+        inner_values = value[1:-1].split()
+        return [self._parse_value(v) for v in inner_values]
+
+def main():
+    parser = argparse.ArgumentParser(description="Преобразование конфигурационного языка в JSON.")
+    parser.add_argument("--input", required=True, help="Путь к файлу с конфигурацией.")
+    args = parser.parse_args()
+
+    try:
+        with open(args.input, 'r') as file:
+            input_text = file.read()
+        config_parser = ConfigParser(input_text)
+        config_parser.parse()
+        print(json.dumps(config_parser.output, ensure_ascii=False, indent=4))
+    except (SyntaxError, ValueError, NameError) as e:
+        print(f"Ошибка: {e}")
+        sys.exit(1)
+    except FileNotFoundError:
+        print(f"Файл не найден: {args.input}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
