@@ -1,0 +1,83 @@
+import datetime
+from zipfile import ZipFile
+import os
+import calendar
+
+# Путь к ZIP-файлу
+filepath = "test.zip"
+user = "admin"
+computer = "test_computer"
+
+# Создание тестового zip-файла с example.txt
+def create_zip_file():
+    data = """Тестовый файл.
+Aston Martin
+McLaren
+BMW
+Toyota
+Jaguar
+Bentley
+Nissan
+Honda
+Ford
+Lamborghini
+"""
+    with ZipFile(filepath, "w") as zip_file:
+        zip_file.writestr("example.txt", data)
+
+# Функция для отображения последних N строк файла
+def tail(filename, zip_file, n=10):
+    if filename in zip_file.namelist():
+        with zip_file.open(filename) as file:
+            # Читаем файл как текст
+            lines = file.read().decode().splitlines()
+            if lines:
+                print('\n'.join(lines[-n:]))
+            else:
+                print(f"tail: {filename} is empty")
+    else:
+        print(f"tail: {filename}: Нет такого файла в архиве")
+
+# Функция для отображения первых N строк файла
+def head(filename, zip_file, n=10):
+    if filename in zip_file.namelist():
+        with zip_file.open(filename) as file:
+            # Читаем файл как текст
+            lines = file.read().decode().splitlines()
+            if lines:
+                print('\n'.join(lines[:n]))
+            else:
+                print(f"head: {filename} is empty")
+    else:
+        print(f"head: {filename}: Нет такого файла в архиве")
+
+# Функция для отображения календаря текущего месяца
+def display_calendar():
+    year = datetime.datetime.now().year
+    month = datetime.datetime.now().month
+    print(calendar.month(year, month))
+
+# Создание ZIP-файла
+create_zip_file()
+
+# Основной цикл для выполнения команд
+with ZipFile(filepath, "r") as zip_file:
+    while True:
+        command = input(f"{user}:{computer}$ ")
+
+        if command == "exit":
+            break
+
+        elif command.startswith("head "):
+            _, filename = command.split(" ", 1)
+            head(filename, zip_file)
+
+        elif command.startswith("tail "):
+            _, filename = command.split(" ", 1)
+            tail(filename, zip_file)
+
+        elif command == "cal":
+            display_calendar()
+
+        else:
+            print("Введите допустимую команду (head, tail, cal, exit)")
